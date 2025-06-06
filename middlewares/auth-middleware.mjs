@@ -1,38 +1,27 @@
-import { body } from "express-validator";
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
 
-export const registerValidation = [
-    body("email")
-        .isEmail()
-        .withMessage("Неверный формат электронной почты")
-        .not()
-        .contains(" ")
-        .withMessage("Электронная почта не должна содержать пробелов"),
+dotenv.config();
 
-    body("password")
-        .isLength({ min: 6 })
-        .withMessage("Пароль должен содержать не меньше 6 символов")
-        .matches(/[a-z]/)
-        .withMessage("Пароль должен содержать строчные буквы")
-        .matches(/[A-Z]/)
-        .withMessage("Пароль должен содержать заглавные буквы")
-        .matches(/[!#$%&?]/)
-        .withMessage("Пароль должен содержать специальные символы (! # $ % & ?)")
-        .not()
-        .matches(/[а-яА-Я]/)
-        .withMessage("Пароль не должен содержать русские буквы")
-        .not()
-        .contains(" ")
-        .withMessage("Пароль не должен содержать пробелов"),
+const JWT_SECRET = process.env.JWT_SECRET;
 
-    body("name")
-        .isAlpha("ru-RU")
-        .withMessage("Имя должно содержать только русские буквы")
-        .isLength({ max: 14 })
-        .withMessage("Имя не должно быть длиннее 14 символов"),
+export default function authMiddleware(req, res, next) {
+    const authHeader = req.headers.authorization;
 
-    body("lastName")
-        .isAlpha("ru-RU")
-        .withMessage("Фамилия должна содержать только русские буквы")
-        .isLength({ max: 20 })
-        .withMessage("Фамилия не должна быть длиннее 20 символов"),
-];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Необходим токен авторизации' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = {
+            id: decoded._id,
+            is_admin: decoded.is_admin
+        };
+        next();
+    } catch (err) {
+        return res.status(401).json({ message: 'Неверный или истёкший токен' });
+    }
+}
